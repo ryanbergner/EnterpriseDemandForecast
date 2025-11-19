@@ -1,9 +1,9 @@
 # config.py
-# Here, we define variables that are used in multiple scripts to ensure consistency.
+# Configuration variables used across the M5 forecasting system.
 
-# 1. Extraction and preprocessing variables
+# M5 Dataset default column mappings
 source_path = ""
 date_column = "OrderDate"
-product_id_column = "SalesInvoiceProductKey"
+product_id_column = "item_id"  # M5 dataset uses 'item_id'
 quantity_column = "Quantity"
 month_end_column = "MonthEndDate"
