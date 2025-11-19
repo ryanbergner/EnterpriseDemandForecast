@@ -1,0 +1,146 @@
+"""
+azure_config.py.template
+
+Template for Azure Configuration
+
+INSTRUCTIONS:
+1. Copy this file to azure_config.py:
+   cp azure_config.py.template azure_config.py
+
+2. Fill in your Azure credentials below
+
+3. DO NOT commit azure_config.py to git (it's in .gitignore)
+
+4. Alternatively, set these as environment variables instead of editing this file
+"""
+
+import os
+
+# =============================================================================
+# Azure Blob Storage Configuration
+# =============================================================================
+
+AZURE_STORAGE_ACCOUNT_NAME = os.getenv(
+    "AZURE_STORAGE_ACCOUNT_NAME",
+    ""  # TODO: Add your storage account name or set environment variable
+)
+
+AZURE_STORAGE_ACCOUNT_KEY = os.getenv(
+    "AZURE_STORAGE_ACCOUNT_KEY",
+    ""  # TODO: Add your storage account key or set environment variable
+)
+
+AZURE_STORAGE_CONTAINER_NAME = os.getenv(
+    "AZURE_STORAGE_CONTAINER_NAME",
+    "m5-forecasting"  # Change if using different container name
+)
+
+AZURE_STORAGE_SAS_TOKEN = os.getenv(
+    "AZURE_STORAGE_SAS_TOKEN",
+    ""  # Alternative to account key
+)
+
+# =============================================================================
+# Azure Databricks Configuration
+# =============================================================================
+
+DATABRICKS_HOST = os.getenv(
+    "DATABRICKS_HOST",
+    ""  # TODO: Add your Databricks workspace URL
+    # Example: "https://adb-1234567890123456.7.azuredatabricks.net"
+)
+
+DATABRICKS_TOKEN = os.getenv(
+    "DATABRICKS_TOKEN",
+    ""  # TODO: Add your personal access token
+)
+
+DATABRICKS_CLUSTER_ID = os.getenv(
+    "DATABRICKS_CLUSTER_ID",
+    ""  # Optional: your cluster ID
+)
+
+# =============================================================================
+# M5 Dataset Paths in Blob Storage
+# =============================================================================
+
+M5_BLOB_BASE_PATH = f"wasbs://{AZURE_STORAGE_CONTAINER_NAME}@{AZURE_STORAGE_ACCOUNT_NAME}.blob.core.windows.net"
+M5_SALES_TRAIN_VALIDATION = f"{M5_BLOB_BASE_PATH}/sales_train_validation.csv"
+M5_SALES_TRAIN_EVALUATION = f"{M5_BLOB_BASE_PATH}/sales_train_evaluation.csv"
+M5_CALENDAR = f"{M5_BLOB_BASE_PATH}/calendar.csv"
+M5_SELL_PRICES = f"{M5_BLOB_BASE_PATH}/sell_prices.csv"
+
+# =============================================================================
+# MLflow Configuration
+# =============================================================================
+
+MLFLOW_TRACKING_URI = os.getenv(
+    "MLFLOW_TRACKING_URI",
+    "databricks"
+)
+
+MLFLOW_EXPERIMENT_PATH = os.getenv(
+    "MLFLOW_EXPERIMENT_PATH",
+    "/Users/{username}/M5_Forecasting"  # TODO: Replace {username}
+)
+
+# =============================================================================
+# Helper Functions (DO NOT MODIFY)
+# =============================================================================
+
+def get_blob_storage_config():
+    return {
+        "account_name": AZURE_STORAGE_ACCOUNT_NAME,
+        "account_key": AZURE_STORAGE_ACCOUNT_KEY,
+        "container_name": AZURE_STORAGE_CONTAINER_NAME,
+        "sas_token": AZURE_STORAGE_SAS_TOKEN
+    }
+
+def get_databricks_config():
+    return {
+        "host": DATABRICKS_HOST,
+        "token": DATABRICKS_TOKEN,
+        "cluster_id": DATABRICKS_CLUSTER_ID
+    }
+
+def validate_azure_config():
+    missing = []
+    if not AZURE_STORAGE_ACCOUNT_NAME:
+        missing.append("AZURE_STORAGE_ACCOUNT_NAME")
+    if not (AZURE_STORAGE_ACCOUNT_KEY or AZURE_STORAGE_SAS_TOKEN):
+        missing.append("AZURE_STORAGE_ACCOUNT_KEY or AZURE_STORAGE_SAS_TOKEN")
+    if not AZURE_STORAGE_CONTAINER_NAME:
+        missing.append("AZURE_STORAGE_CONTAINER_NAME")
+    is_valid = len(missing) == 0
+    return is_valid, missing
+
+def setup_spark_blob_storage(spark):
+    if AZURE_STORAGE_ACCOUNT_KEY:
+        spark.conf.set(
+            f"fs.azure.account.key.{AZURE_STORAGE_ACCOUNT_NAME}.blob.core.windows.net",
+            AZURE_STORAGE_ACCOUNT_KEY
+        )
+    elif AZURE_STORAGE_SAS_TOKEN:
+        spark.conf.set(
+            f"fs.azure.sas.{AZURE_STORAGE_CONTAINER_NAME}.{AZURE_STORAGE_ACCOUNT_NAME}.blob.core.windows.net",
+            AZURE_STORAGE_SAS_TOKEN
+        )
+    else:
+        raise ValueError("Either AZURE_STORAGE_ACCOUNT_KEY or AZURE_STORAGE_SAS_TOKEN must be set")
+    return spark
+
+def get_m5_data_paths():
+    return {
+        "sales_train_validation": M5_SALES_TRAIN_VALIDATION,
+        "sales_train_evaluation": M5_SALES_TRAIN_EVALUATION,
+        "calendar": M5_CALENDAR,
+        "sell_prices": M5_SELL_PRICES
+    }
+
+if __name__ == "__main__":
+    is_valid, missing = validate_azure_config()
+    if is_valid:
+        print("✓ Azure configuration is valid")
+    else:
+        print("✗ Azure configuration is incomplete")
+        print(f"Missing: {missing}")
