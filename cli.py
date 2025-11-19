@@ -63,54 +63,84 @@ Examples:
     train_parser.add_argument(
         '--data',
         required=True,
-        help='Path to training data (CSV or Parquet)'
+        help='Path to the training dataset (CSV/Parquet or ABFS/DBFS URI)'
     )
     train_parser.add_argument(
-        '--models',
-        default='rf,gbt,lr,stats',
-        help='Comma-separated list of models to train (rf, gbt, lr, stats, all)'
+        '--format',
+        choices=['m5_wide', 'long'],
+        default='m5_wide',
+        help="Input format: 'm5_wide' for Kaggle layout, 'long' for tidy daily data"
     )
     train_parser.add_argument(
-        '--categories',
-        default='all',
-        help='Product categories to train on (Smooth, Erratic, Intermittent, Lumpy, all)'
+        '--calendar-start',
+        default='2011-01-29',
+        help="Calendar start date corresponding to d_1 when --format=m5_wide"
     )
     train_parser.add_argument(
-        '--cv-folds',
-        type=int,
-        default=0,
-        help='Number of cross-validation folds (0 = no CV, default)'
+        '--date-column',
+        default='date',
+        help='Date column name when --format=long'
     )
     train_parser.add_argument(
-        '--cv-strategy',
-        choices=['expanding', 'sliding'],
-        default='expanding',
-        help='Cross-validation strategy'
+        '--product-column',
+        default='item_id',
+        help='Product identifier column when --format=long'
     )
     train_parser.add_argument(
-        '--early-stopping',
-        action='store_true',
-        help='Enable early stopping for tree models'
-    )
-    train_parser.add_argument(
-        '--patience',
-        type=int,
-        default=5,
-        help='Early stopping patience'
-    )
-    train_parser.add_argument(
-        '--feature-selection',
-        action='store_true',
-        help='Enable automatic feature selection'
-    )
-    train_parser.add_argument(
-        '--output-dir',
-        default='./models',
-        help='Directory to save trained models'
+        '--quantity-column',
+        default='demand',
+        help='Quantity column when --format=long'
     )
     train_parser.add_argument(
         '--experiment-name',
+        default='M5_CLI_Training',
         help='MLflow experiment name'
+    )
+    train_parser.add_argument(
+        '--mlflow-uri',
+        help='Optional MLflow tracking URI'
+    )
+    train_parser.add_argument(
+        '--sample-items',
+        type=int,
+        default=0,
+        help='Optional cap on number of items to train on (0 = use all)'
+    )
+    train_parser.add_argument(
+        '--min-orders',
+        type=int,
+        default=5,
+        help='Minimum number of non-zero order months per item'
+    )
+    train_parser.add_argument(
+        '--train-quantile',
+        type=float,
+        default=0.8,
+        help='Quantile used for the chronological train/test split'
+    )
+    train_parser.add_argument(
+        '--feature-columns',
+        help='Comma-separated list of feature columns. Defaults to heuristics if omitted'
+    )
+    train_parser.add_argument(
+        '--requirements-path',
+        default='requirements.txt',
+        help='Requirements file used when logging Spark models to MLflow'
+    )
+    train_parser.add_argument(
+        '--disable-stats',
+        action='store_true',
+        help='Disable StatsForecast models'
+    )
+    train_parser.add_argument(
+        '--disable-ml',
+        action='store_true',
+        help='Disable Spark ML models'
+    )
+    train_parser.add_argument(
+        '--per-category',
+        action='store_true',
+        help='Train separate experiments per intermittent demand category'
     )
     
     # ============ EVALUATE COMMAND ============
@@ -264,72 +294,83 @@ Examples:
 
 def train_command(args):
     """Execute train command."""
-    logger.info("🚀 Starting model training...")
-    logger.info(f"   Data: {args.data}")
-    logger.info(f"   Models: {args.models}")
-    logger.info(f"   Categories: {args.categories}")
-    
-    from pyspark.sql import SparkSession
-    
-    # Initialize Spark
-    spark = SparkSession.builder.appName("TimeSeriesForecasting_CLI").getOrCreate()
-    
-    # Load data
-    logger.info("📂 Loading data...")
-    if args.data.endswith('.csv'):
-        df = spark.read.format("csv").option("header", True).load(args.data)
-    elif args.data.endswith('.parquet'):
-        df = spark.read.parquet(args.data)
+    logger.info("🚀 Starting model training for the M5 dataset family...")
+    logger.info(f"   Data source: {args.data}")
+    logger.info(f"   Format: {args.format}")
+
+    from pyspark.sql import SparkSession, functions as F
+    import mlflow
+
+    spark = (
+        SparkSession.builder.appName("TimeSeriesForecasting_CLI")
+        .config("spark.sql.shuffle.partitions", "200")
+        .getOrCreate()
+    )
+
+    if args.mlflow_uri:
+        mlflow.set_tracking_uri(args.mlflow_uri)
+
+    from src.preprocessing.datasets import load_custom_daily_dataset, load_m5_wide_dataset
+    from src.model_training.training_workflow import (
+        TrainingConfig,
+        prepare_feature_frame,
+        run_training_workflow,
+    )
+
+    if args.format == 'm5_wide':
+        sdf = load_m5_wide_dataset(
+            spark,
+            path=args.data,
+            sample_items=args.sample_items if args.sample_items > 0 else None,
+            calendar_start=args.calendar_start,
+        )
+        date_column = "OrderDate"
+        product_column = "item_id"
+        quantity_column = "Quantity"
     else:
-        logger.error("Unsupported data format. Use CSV or Parquet.")
-        return 1
-    
-    # Import training modules
-    from src.preprocessing.preprocess import aggregate_sales_data
-    from src.feature_engineering.feature_engineering import add_features
-    
-    # Add enhanced features if requested
-    if args.feature_selection or args.cv_folds > 0:
-        logger.info("🔧 Adding enhanced features...")
-        from src.feature_engineering.trend_features import add_trend_features
-        from src.feature_engineering.ewma_features import add_ewma_features
-        
-        # Apply feature engineering (simplified for CLI)
-        # In practice, you'd call your actual feature engineering pipeline
-    
-    # Cross-validation
-    if args.cv_folds > 0:
-        logger.info(f"📊 Running {args.cv_folds}-fold cross-validation...")
-        from src.validation.time_series_cv import TimeSeriesCV
-        
-        cv = TimeSeriesCV(n_splits=args.cv_folds, strategy=args.cv_strategy)
-        # Run CV (implementation details depend on your setup)
-    
-    # Train models
-    models_to_train = args.models.split(',')
-    logger.info(f"🎯 Training {len(models_to_train)} model types...")
-    
-    # Parse categories
-    if args.categories == 'all':
-        categories = ['Smooth', 'Erratic', 'Intermittent', 'Lumpy']
+        sdf = load_custom_daily_dataset(
+            spark,
+            path=args.data,
+            date_column=args.date_column,
+            product_column=args.product_column,
+            quantity_column=args.quantity_column,
+        )
+        date_column = "OrderDate"
+        product_column = "item_id"
+        quantity_column = "Quantity"
+
+    feature_columns = None
+    if args.feature_columns:
+        feature_columns = [col.strip() for col in args.feature_columns.split(",") if col.strip()]
+
+    cfg = TrainingConfig(
+        experiment_name=args.experiment_name,
+        date_column=date_column,
+        product_id_column=product_column,
+        quantity_column=quantity_column,
+        min_total_orders=args.min_orders,
+        sample_products=args.sample_items if args.sample_items > 0 else None,
+        feature_columns=feature_columns,
+        train_quantile=args.train_quantile,
+        requirements_path=args.requirements_path,
+        enable_stats=not args.disable_stats,
+        enable_ml=not args.disable_ml,
+    )
+
+    df_feat = prepare_feature_frame(sdf, cfg)
+
+    if args.per_category and "product_category" in df_feat.columns:
+        categories = [row[0] for row in df_feat.select("product_category").distinct().collect()]
+        logger.info(f"Training per category: {categories}")
+        for category in categories:
+            segment_df = df_feat.filter(F.col("product_category") == category)
+            if segment_df.count() == 0:
+                continue
+            run_training_workflow(segment_df, cfg, segment_label=category)
     else:
-        categories = args.categories.split(',')
-    
-    # Training loop (simplified)
-    for category in categories:
-        logger.info(f"\n   Training on category: {category}")
-        
-        for model_type in models_to_train:
-            logger.info(f"     Model: {model_type}")
-            
-            # Early stopping
-            if args.early_stopping and model_type in ['rf', 'gbt']:
-                from src.model_training.early_stopping import EarlyStopping
-                early_stop = EarlyStopping(patience=args.patience)
-                # Use early stopping in training
-    
-    logger.info(f"\n✅ Training complete! Models saved to {args.output_dir}")
-    
+        run_training_workflow(df_feat, cfg)
+
+    logger.info("✅ Training complete. Check MLflow for run details.")
     spark.stop()
     return 0
 
