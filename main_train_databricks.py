@@ -1,14 +1,18 @@
 #!/usr/bin/env python
 """
-main_train_m5.py
+main_train_databricks.py
 
-Training script for M5 dataset - Local Data Ingestion
+Training script for M5 dataset - Azure Databricks with Blob Storage
 
 This script trains both Spark ML and StatsForecast models on the M5 forecasting dataset
-loaded from local storage. It includes all ML and statistical models in a single pipeline.
+loaded from Azure Blob Storage. It includes all ML and statistical models in a single pipeline.
 
 Usage:
-    python main_train_m5.py --data-path /path/to/m5 --experiment-name M5_Experiment
+    # In Databricks notebook:
+    %run /Workspace/path/to/main_train_databricks
+    
+    # Or as a job with parameters:
+    python main_train_databricks.py --max-items 500 --experiment-name M5_Production
 """
 
 import argparse
@@ -36,32 +40,102 @@ from src.feature_engineering.feature_engineering import add_features
 from src.model_training.ml_models import train_sparkML_models, evaluate_sparkML_models
 from src.model_training.stats_models import train_stats_models, evaluate_stats_models
 
+# Azure configuration
+try:
+    from azure_config import (
+        setup_spark_blob_storage,
+        get_m5_data_paths,
+        validate_azure_config,
+        M5_SALES_TRAIN_VALIDATION,
+        MLFLOW_TRACKING_URI,
+        MLFLOW_EXPERIMENT_PATH
+    )
+    AZURE_CONFIG_AVAILABLE = True
+except ImportError:
+    print("[WARNING] azure_config.py not found. Using default paths.")
+    AZURE_CONFIG_AVAILABLE = False
 
-def load_m5_dataset(spark, data_path, limit=None):
+
+def setup_databricks_environment(spark):
     """
-    Load and transform M5 dataset from local storage.
-    
-    The M5 dataset comes in wide format with columns: item_id, d_1, d_2, ..., d_1913
-    This function unpivots it to long format: (item_id, date, quantity)
+    Setup Databricks environment with Azure Blob Storage access.
     
     Args:
         spark: SparkSession object
-        data_path: Path to M5 sales_train_validation.csv file
-        limit: Optional limit on number of rows to process (for testing)
+        
+    Returns:
+        SparkSession: Configured Spark session
+    """
+    print("[INFO] Setting up Databricks environment...")
+    
+    if AZURE_CONFIG_AVAILABLE:
+        # Validate Azure configuration
+        is_valid, missing = validate_azure_config()
+        if not is_valid:
+            print(f"[WARNING] Azure configuration incomplete. Missing: {missing}")
+            print("[INFO] Attempting to use Databricks secrets...")
+            
+            try:
+                # Try to use Databricks secrets
+                from pyspark.dbutils import DBUtils
+                dbutils = DBUtils(spark)
+                
+                # Example: Get from Databricks secrets scope
+                account_name = dbutils.secrets.get(scope="azure-storage", key="account-name")
+                account_key = dbutils.secrets.get(scope="azure-storage", key="account-key")
+                
+                spark.conf.set(
+                    f"fs.azure.account.key.{account_name}.blob.core.windows.net",
+                    account_key
+                )
+                print("[INFO] Successfully configured using Databricks secrets")
+            except Exception as e:
+                print(f"[WARNING] Could not configure from Databricks secrets: {e}")
+        else:
+            # Use azure_config.py
+            spark = setup_spark_blob_storage(spark)
+            print("[INFO] Successfully configured using azure_config.py")
+    else:
+        print("[INFO] No Azure configuration found. Assuming Databricks has access configured.")
+    
+    return spark
+
+
+def load_m5_from_blob(spark, blob_path=None, limit=None):
+    """
+    Load and transform M5 dataset from Azure Blob Storage.
+    
+    Args:
+        spark: SparkSession object
+        blob_path: Path to M5 CSV in blob storage (wasbs:// format)
+        limit: Optional limit on number of rows to process
         
     Returns:
         DataFrame: Unpivoted M5 dataset
     """
-    print(f"[INFO] Loading M5 dataset from: {data_path}")
+    # Determine path
+    if blob_path is None:
+        if AZURE_CONFIG_AVAILABLE:
+            blob_path = M5_SALES_TRAIN_VALIDATION
+        else:
+            # Default Databricks mount path
+            blob_path = "/mnt/m5/sales_train_validation.csv"
+    
+    print(f"[INFO] Loading M5 dataset from: {blob_path}")
     
     # Read CSV file
-    if limit:
-        df = spark.read.csv(data_path, header=True).limit(limit)
-        print(f"[INFO] Limited to {limit} products for testing")
-    else:
-        df = spark.read.csv(data_path, header=True)
-    
-    print(f"[INFO] Loaded {df.count()} products")
+    try:
+        if limit:
+            df = spark.read.csv(blob_path, header=True).limit(limit)
+            print(f"[INFO] Limited to {limit} products for testing")
+        else:
+            df = spark.read.csv(blob_path, header=True)
+        
+        print(f"[INFO] Loaded {df.count()} products")
+    except Exception as e:
+        print(f"[ERROR] Failed to load data from {blob_path}")
+        print(f"[ERROR] {e}")
+        raise
     
     # Define day columns (M5 has 1913 days)
     day_columns = [f"d_{i}" for i in range(1, 1914)]
@@ -90,37 +164,40 @@ def load_m5_dataset(spark, data_path, limit=None):
     return df_unpivoted
 
 
-def main_train_m5(
-    data_path="data/m5/sales_train_validation.csv",
-    experiment_name="M5_Forecasting",
+def main_train_databricks(
+    blob_path=None,
+    experiment_name="M5_Forecasting_Databricks",
     limit_products=None,
-    max_distinct_items=100
+    max_distinct_items=100,
+    user_email=None
 ):
     """
-    Main training function for M5 dataset.
+    Main training function for M5 dataset on Azure Databricks.
     
     Args:
-        data_path: Path to M5 sales_train_validation.csv
+        blob_path: Path to M5 CSV in blob storage
         experiment_name: Name for MLflow experiment
         limit_products: Optional limit on products to load (for testing)
         max_distinct_items: Maximum number of distinct items to train on
+        user_email: Databricks user email for experiment path
     """
     print("="*80)
-    print("M5 FORECASTING - LOCAL TRAINING")
+    print("M5 FORECASTING - AZURE DATABRICKS TRAINING")
     print("="*80)
     
-    # 1) Create Spark session
-    print("\n[1/6] Creating Spark session...")
-    spark = (
-        SparkSession.builder
-        .appName("M5_Forecasting_Local")
-        .config("spark.driver.memory", "4g")
-        .getOrCreate()
-    )
+    # 1) Get Spark session (already available in Databricks)
+    print("\n[1/6] Getting Spark session...")
+    try:
+        spark = SparkSession.builder.getOrCreate()
+    except:
+        spark = SparkSession.builder.appName("M5_Forecasting_Databricks").getOrCreate()
     
-    # 2) Load M5 dataset
-    print("\n[2/6] Loading M5 dataset...")
-    df = load_m5_dataset(spark, data_path, limit=limit_products)
+    # Setup Azure Blob Storage access
+    spark = setup_databricks_environment(spark)
+    
+    # 2) Load M5 dataset from blob storage
+    print("\n[2/6] Loading M5 dataset from Azure Blob Storage...")
+    df = load_m5_from_blob(spark, blob_path=blob_path, limit=limit_products)
     
     # Column mappings
     date_column = "OrderDate"
@@ -166,7 +243,6 @@ def main_train_m5(
     approx_list = df_feat.approxQuantile("unix_time", [0.8], 0)
     if not approx_list:
         print("[ERROR] Could not compute quantile for train/test split")
-        spark.stop()
         return
     
     cutoff_ts = approx_list[0]
@@ -183,7 +259,6 @@ def main_train_m5(
     
     if train_count == 0 or test_count == 0:
         print("[ERROR] Empty train or test set. Exiting.")
-        spark.stop()
         return
     
     # Define feature columns
@@ -246,8 +321,20 @@ def main_train_m5(
     # 6) Train models with MLflow tracking
     print("\n[6/6] Training models...")
     
+    # Setup MLflow
+    if AZURE_CONFIG_AVAILABLE and MLFLOW_TRACKING_URI:
+        mlflow.set_tracking_uri(MLFLOW_TRACKING_URI)
+    
     # Create MLflow experiment
-    experiment_name_full = f"/Users/{experiment_name}_{datetime.datetime.now():%Y%m%d_%H%M%S}"
+    if user_email:
+        experiment_base = f"/Users/{user_email}/{experiment_name}"
+    elif AZURE_CONFIG_AVAILABLE:
+        experiment_base = MLFLOW_EXPERIMENT_PATH.replace("{username}", "default")
+    else:
+        experiment_base = f"/Users/{experiment_name}"
+    
+    experiment_name_full = f"{experiment_base}_{datetime.datetime.now():%Y%m%d_%H%M%S}"
+    
     try:
         experiment_id = mlflow.create_experiment(experiment_name_full)
     except mlflow.exceptions.MlflowException:
@@ -258,11 +345,13 @@ def main_train_m5(
     print(f"[INFO] MLflow experiment: {experiment_name_full}")
     
     # Parent run
-    with mlflow.start_run(run_name="M5_Training_All_Models") as parent_run:
+    with mlflow.start_run(run_name="M5_Databricks_All_Models") as parent_run:
         mlflow.log_param("dataset", "M5")
+        mlflow.log_param("environment", "Azure Databricks")
         mlflow.log_param("train_count", train_count)
         mlflow.log_param("test_count", test_count)
         mlflow.log_param("num_features", len(available_features))
+        mlflow.log_param("blob_path", blob_path or "default")
         
         # Train Statistical Models
         print("\n--- Training Statistical Models ---")
@@ -318,7 +407,7 @@ def main_train_m5(
                         test_df=test_df.select(*available_features, target_column),
                         features_cols=available_features,
                         label_col=target_column,
-                        requirements_path="requirements.txt",
+                        requirements_path=None,
                         model_alias=ml_alias
                     )
                     print(f"[SparkML] {ml_alias} completed: {metrics}")
@@ -327,24 +416,25 @@ def main_train_m5(
     
     print("\n" + "="*80)
     print("TRAINING COMPLETE!")
-    print(f"View results in MLflow UI: mlflow ui")
+    print(f"View results in Databricks MLflow UI")
+    print(f"Experiment: {experiment_name_full}")
     print("="*80)
-    
-    spark.stop()
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Train models on M5 dataset (local)")
+    parser = argparse.ArgumentParser(
+        description="Train models on M5 dataset (Azure Databricks with Blob Storage)"
+    )
     parser.add_argument(
-        "--data-path",
+        "--blob-path",
         type=str,
-        default="data/m5/sales_train_validation.csv",
-        help="Path to M5 sales_train_validation.csv file"
+        default=None,
+        help="Path to M5 sales_train_validation.csv in blob storage (wasbs:// format)"
     )
     parser.add_argument(
         "--experiment-name",
         type=str,
-        default="M5_Forecasting_Local",
+        default="M5_Forecasting_Databricks",
         help="Name for MLflow experiment"
     )
     parser.add_argument(
@@ -359,12 +449,19 @@ if __name__ == "__main__":
         default=100,
         help="Maximum number of distinct items to train on"
     )
+    parser.add_argument(
+        "--user-email",
+        type=str,
+        default=None,
+        help="Databricks user email for experiment path"
+    )
     
     args = parser.parse_args()
     
-    main_train_m5(
-        data_path=args.data_path,
+    main_train_databricks(
+        blob_path=args.blob_path,
         experiment_name=args.experiment_name,
         limit_products=args.limit_products,
-        max_distinct_items=args.max_items
+        max_distinct_items=args.max_items,
+        user_email=args.user_email
     )
