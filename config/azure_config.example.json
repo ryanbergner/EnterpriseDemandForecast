@@ -1,0 +1,10 @@
+{
+  "storage_account": "your-storage-account-name",
+  "container": "your-container",
+  "blob_path": "path/to/m5/sales_train_validation.csv",
+  "client_id": "optional-service-principal-client-id",
+  "client_secret": "optional-service-principal-secret",
+  "tenant_id": "optional-tenant-id",
+  "databricks_workspace_url": "https://adb-xxxxxxxxxxxx.azuredatabricks.net",
+  "databricks_token": "optional-personal-access-token"
+}

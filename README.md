@@ -383,42 +383,47 @@ predictions = generate_predictions(
 
 ## Main Scripts
 
-### `main_train.py`
+### `train_local_m5.py`
 
-Comprehensive training script that trains multiple model types across product categories.
-
-**Features:**
-- Trains both Spark ML and StatsForecast models
-- Creates separate MLflow experiments for each product category
-- Supports hyperparameter tuning
-- Handles data filtering and validation
-
-**Usage:**
-```bash
-python main_train.py
-```
-
-### `main_train_spark.py`
-
-Focused training script for Spark ML and StatsForecast models.
-
-**Usage:**
-```bash
-python main_train_spark.py
-```
-
-### `main_train_sklearn.py`
-
-Training script for TabPFN and other scikit-learn models.
+Unified local training entry point that reads the Kaggle M5 dataset (or a compatible schema)
+from the local filesystem.
 
 **Features:**
-- Enforces 10k row limit for TabPFN
-- Automatic train/test splitting
-- MLflow integration for scikit-learn models
+- Supports both the original wide M5 CSV and pre-unpivoted daily data
+- Trains Spark ML (Random Forest, Gradient Boosted Trees, Linear Regression) and StatsForecast models
+- Optional per-category training based on the intermittent demand taxonomy
+- Saves artefacts to MLflow (tracking URI configurable via `--mlflow-uri`)
 
 **Usage:**
 ```bash
-python main_train_sklearn.py
+python train_local_m5.py \
+  --data-path data/raw/m5/sales_train_validation.csv \
+  --format m5_wide \
+  --experiment-name M5_Local_Run
+```
+
+### `train_databricks_m5.py`
+
+Databricks-friendly training script that reads the M5 dataset from Azure Blob Storage or ADLS Gen2.
+Credentials can be provided through environment variables (`M5_AZURE_*`) or a JSON config file
+generated from `config/azure_config.example.json`.
+
+**Usage:**
+```bash
+python train_databricks_m5.py \
+  --azure-config config/azure_config.json \
+  --experiment-name M5_Databricks_Run
+```
+
+### `EDA_M5.py`
+
+Consolidated exploratory notebook (exported as a Python script) for inspecting the M5 dataset
+or any dataset that follows the same schema. Generates summary statistics, monthly aggregates,
+and optional diagnostic plots.
+
+**Usage:**
+```bash
+python EDA_M5.py --data-path data/raw/m5/sales_train_validation.csv --save-plots
 ```
 
 ### `main_inference.py`
