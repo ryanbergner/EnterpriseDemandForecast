@@ -148,10 +148,11 @@ def prepare_feature_frame(df: DataFrame, cfg: TrainingConfig) -> DataFrame:
 def split_train_test(df: DataFrame, cfg: TrainingConfig) -> Tuple[DataFrame, DataFrame, Optional[str]]:
     df_ts = df.withColumn("unix_time", F.unix_timestamp(F.col(cfg.month_end_column)))
     quantiles = df_ts.approxQuantile("unix_time", [cfg.train_quantile], 0.0)
-    if not quantiles:
-        return df_ts, df_ts.limit(0), None
+    cutoff = quantiles[0] if quantiles else None
+    if cutoff is None:
+        df_clean = df_ts.drop("unix_time")
+        return df_clean, df_clean.limit(0), None
 
-    cutoff = quantiles[0]
     train_df = df_ts.filter(F.col("unix_time") <= cutoff).drop("unix_time")
     test_df = df_ts.filter(F.col("unix_time") > cutoff).drop("unix_time")
 
