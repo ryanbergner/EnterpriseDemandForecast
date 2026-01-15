@@ -24,14 +24,14 @@ tabpfn>=2.0.1            # Transformer-based tabular prediction
 torch>=2.0.0
 
 # MLflow Model Flavors
-mlflavors>=1.0.0
+mlflavors>=0.1.0
 
 # Django API & async processing
 django>=5.1.0
 djangorestframework>=3.15.0
 celery>=5.4.0
 redis>=5.0.0
-redis-server
+redis-server; python_version < "3.9"
 
 # Visualization
 seaborn>=0.12.2
