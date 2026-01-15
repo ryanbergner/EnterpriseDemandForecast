@@ -11,6 +11,10 @@ from pyspark.sql.functions import lit
 client = mlflow.tracking.MlflowClient()
 
 
+def _get_spark_session() -> SparkSession:
+    return SparkSession.builder.getOrCreate()
+
+
 def generate_predictions(
     model_uri,
     model_name,
@@ -67,6 +71,7 @@ def generate_predictions(
             "prediction",
         ]
 
+        spark = _get_spark_session()
         predicted_df = (
             spark.createDataFrame(predicted_quantities_pdf)
             .withColumn("SalesPattern", lit(sales_pattern))

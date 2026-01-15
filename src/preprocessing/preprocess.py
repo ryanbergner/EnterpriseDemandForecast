@@ -24,7 +24,7 @@ from pyspark.sql.functions import (
     max as spark_max
 )
 from pyspark.sql.window import Window
-from pyspark.sql import DataFrame
+from pyspark.sql import DataFrame, SparkSession
 from pyspark.sql.types import (
     StructType,
     StructField,
@@ -38,7 +38,7 @@ from datetime import datetime, timedelta
 from math import sqrt as math_sqrt
 
 
-def retrieve_sales_data(table_path: str) -> DataFrame:
+def retrieve_sales_data(table_path: str, spark: "SparkSession" = None) -> DataFrame:
     """
     Retrieves sales data from the combined_gold database for a specified category.
 
@@ -48,6 +48,9 @@ def retrieve_sales_data(table_path: str) -> DataFrame:
     Returns:
         DataFrame: Sales data DataFrame filtered based on the specified category.
     """
+    if spark is None:
+        spark = SparkSession.builder.getOrCreate()
+
     # Load data from Delta table
     df = spark.read.format("delta").load(table_path)
 

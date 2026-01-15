@@ -132,6 +132,7 @@ def evaluate_stats_models(
     print(f"Got predicted Pandas DF => shape={predicted_quantities_pdf.shape}")
 
     # Convert to Spark => rename columns to match test_df
+    spark = SparkSession.builder.getOrCreate()
     if "unique_id" not in predicted_quantities_pdf.columns:
         # Single-ID scenario => add dummy product_id in both predictions & test
         dummy_id_value = "SingleID"
