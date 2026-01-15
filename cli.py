@@ -554,9 +554,14 @@ def compare_command(args):
         return 1
     
     # Sort by metric
+    # Error metrics (rmse, mae, mape): lower is better => ascending=True
+    # R2: higher is better => ascending=False
     metric_col = f"metrics.{args.metric}"
     if metric_col in runs.columns:
-        runs_sorted = runs.sort_values(by=metric_col, ascending=(args.metric != 'r2'))
+        metric_name = args.metric.lower()
+        lower_is_better = {"rmse", "mae", "mape"}
+        ascending = metric_name in lower_is_better
+        runs_sorted = runs.sort_values(by=metric_col, ascending=ascending)
         
         logger.info(f"\n🏆 Top {args.top_k} models by {args.metric}:")
         for i, row in runs_sorted.head(args.top_k).iterrows():
