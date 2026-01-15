@@ -26,6 +26,12 @@ torch>=2.0.0
 # MLflow Model Flavors
 mlflavors>=1.0.0
 
+# Django API & async processing
+django>=5.1.0
+djangorestframework>=3.15.0
+celery>=5.4.0
+redis>=5.0.0
+
 # Visualization
 seaborn>=0.12.2
 matplotlib>=3.4.3

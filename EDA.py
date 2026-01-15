@@ -104,7 +104,6 @@ from src.model_training.stats_models import (
 
 # Standard library imports
 from typing import Optional, List, Any, Dict, Tuple
-from math import sqrt as math_sqrt, isclose
 import datetime
 
 # COMMAND ----------

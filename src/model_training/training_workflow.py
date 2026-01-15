@@ -17,6 +17,9 @@ from pyspark.sql import DataFrame
 from pyspark.sql import functions as F
 
 from src.feature_engineering.feature_engineering import add_features
+from src.feature_engineering.interaction_features import add_all_interaction_features
+from src.feature_engineering.multiscale_features import add_all_multiscale_features
+from src.feature_engineering.seasonal_decomposition import add_all_seasonal_features
 from src.model_training.ml_models import evaluate_sparkML_models, train_sparkML_models
 from src.model_training.stats_models import evaluate_stats_models, train_stats_models
 from src.preprocessing.preprocess import aggregate_sales_data
@@ -61,6 +64,7 @@ class TrainingConfig:
     requirements_path: Optional[str] = "requirements.txt"
     enable_stats: bool = True
     enable_ml: bool = True
+    use_advanced_features: bool = False
 
     def resolve_feature_columns(self, df: DataFrame) -> List[str]:
         if self.feature_columns:
@@ -129,6 +133,25 @@ def prepare_feature_frame(df: DataFrame, cfg: TrainingConfig) -> DataFrame:
         product_id_column=cfg.product_id_column,
         quantity_column=cfg.quantity_column,
     )
+    if cfg.use_advanced_features:
+        df_feat = add_all_multiscale_features(
+            df_feat,
+            value_col=cfg.quantity_column,
+            date_col=cfg.month_end_column,
+            product_col=cfg.product_id_column,
+        )
+        df_feat = add_all_seasonal_features(
+            df_feat,
+            value_col=cfg.quantity_column,
+            date_col=cfg.month_end_column,
+            product_col=cfg.product_id_column,
+        )
+        df_feat = add_all_interaction_features(
+            df_feat,
+            value_col=cfg.quantity_column,
+            date_col=cfg.month_end_column,
+            product_col=cfg.product_id_column,
+        )
     if cfg.min_total_orders:
         df_feat = df_feat.filter(F.col("total_orders") >= cfg.min_total_orders)
 

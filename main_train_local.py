@@ -45,7 +45,8 @@ def train_local(
     experiment_prefix: str = "/Local_Forecasting",
     m5_start_date: str = "2011-01-29",
     spark: Optional[SparkSession] = None,
-    auto_transform_m5: bool = True
+    auto_transform_m5: bool = True,
+    use_advanced_features: bool = False
 ) -> Dict[str, Any]:
     path = Path(data_path)
     if not path.exists():
@@ -75,7 +76,8 @@ def train_local(
         quantity_col=quantity_col,
         month_end_col=month_end_col,
         experiment_prefix=experiment_prefix,
-        spark=spark
+        spark=spark,
+        use_advanced_features=use_advanced_features
     )
     result["data_path"] = str(data_path)
 
@@ -95,6 +97,7 @@ def main() -> int:
     parser.add_argument("--experiment", default="/Local_Forecasting")
     parser.add_argument("--m5-start-date", default="2011-01-29")
     parser.add_argument("--no-transform-m5", action="store_true")
+    parser.add_argument("--advanced-features", action="store_true")
     parser.add_argument("--verbose", "-v", action="store_true")
 
     args = parser.parse_args()
@@ -110,7 +113,8 @@ def main() -> int:
             month_end_col=args.month_end_col,
             experiment_prefix=args.experiment,
             m5_start_date=args.m5_start_date,
-            auto_transform_m5=not args.no_transform_m5
+            auto_transform_m5=not args.no_transform_m5,
+            use_advanced_features=args.advanced_features
         )
         print(f"Training result: {result}")
         return 0

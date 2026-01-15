@@ -773,6 +773,32 @@ python main_train_local.py data/m5/sales_train_validation.csv
 
 ---
 
+## Django Application
+
+### Setup
+```bash
+pip install -r requirements.txt
+cd demand_forecast_app
+python manage.py migrate
+python manage.py runserver
+```
+
+### Celery Worker
+```bash
+celery -A demand_forecast worker -l info
+```
+
+### Key API Endpoints
+- `POST /api/v1/train/` — trigger training job
+- `GET /api/v1/train/{job_id}/` — training job status
+- `POST /api/v1/predict/` — generate predictions
+- `GET /api/v1/models/` — list model versions
+- `GET /api/v1/features/` — list feature configs
+- `GET /api/v1/metrics/` — model metrics
+- `POST /api/v1/drift/check/` — drift detection
+
+---
+
 ## Pull Request Description (Historical)
 
 This codebase includes a comprehensive enhancement set:

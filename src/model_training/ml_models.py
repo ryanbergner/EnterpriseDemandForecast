@@ -21,7 +21,6 @@ from pyspark.sql.functions import (
 )
 import mlflow
 from typing import List, Optional
-import numpy as np
 
 
 def train_sparkML_models(
@@ -144,6 +143,7 @@ def evaluate_sparkML_models(
         )
         .agg(
             spark_mean(col("sq_err")).alias("mse"),
+            sqrt(spark_mean(col("sq_err"))).alias("rmse"),
             spark_mean(spark_pow(col("y_minus_mean"), lit(2.0))).alias("var_y"),
             spark_mean(col("abs_err")).alias("mae"),
             spark_mean(col("pct_err")).alias("mape_fraction")
@@ -160,9 +160,7 @@ def evaluate_sparkML_models(
     else:
         mape_val = None
 
-    # Use Python math.sqrt for scalar computation (single value, not distributed)
-    import math
-    rmse_val = float(math.sqrt(mse_val)) if mse_val >= 0 else None
+    rmse_val = float(row_agg["rmse"]) if row_agg["rmse"] is not None else None
     r2_val = 1.0 - (mse_val / var_y) if var_y != 0 else None
 
     # 4) Log metrics in lower case
