@@ -160,7 +160,9 @@ def evaluate_sparkML_models(
     else:
         mape_val = None
 
-    rmse_val = float(np.sqrt(mse_val)) if mse_val >= 0 else None
+    # Use Python math.sqrt for scalar computation (single value, not distributed)
+    import math
+    rmse_val = float(math.sqrt(mse_val)) if mse_val >= 0 else None
     r2_val = 1.0 - (mse_val / var_y) if var_y != 0 else None
 
     # 4) Log metrics in lower case

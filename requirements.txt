@@ -1,21 +1,50 @@
 # requirements.txt
+# Enterprise Demand Forecasting System Dependencies
 
+# Core PySpark and data processing
 pyspark>=3.5.4
 numpy>=1.21
 pandas>=2.2.2
-scikit-learn>=1.5.2
 scipy>=1.15.1
-tabpfn>=2.0.1    # The TabPFN package
-mlflavors>=1.0.0
-torch>=2.0.0  # Required for TabPFN
+
+# Machine Learning - Core
+scikit-learn>=1.5.2
 mlflow>=2.15.1
-statsforecast>=1.7.0
+
+# Gradient Boosting Models (Advanced ML)
+lightgbm>=4.0.0          # Fast gradient boosting, quantile regression
+xgboost>=2.0.0           # High-accuracy gradient boosting
+catboost>=1.2.0          # Handles categorical features natively
+
+# Time Series & Statistical Models
+statsforecast>=1.7.0     # Statistical forecasting (ARIMA, ETS, Croston)
+tabpfn>=2.0.1            # Transformer-based tabular prediction
+
+# Deep Learning (for TabPFN)
+torch>=2.0.0
+
+# MLflow Model Flavors
+mlflavors>=1.0.0
+
+# Visualization
 seaborn>=0.12.2
 matplotlib>=3.4.3
 plotly>=5.3.1
+
+# Notebook Environment
 jupyter>=1.0.0
 jupyterlab>=3.2.0
 
-# Optional dependencies
-#git+https://github.com/PriorLabs/tabpfn-community.git
-#git+https://github.com/FelixdenBreejen/TabForestPFN.git
+# Date/Time utilities
+python-dateutil>=2.8.2
+
+# Optional dependencies for enhanced functionality
+# Uncomment as needed:
+# optuna>=3.0.0          # Hyperparameter optimization
+# shap>=0.42.0           # Model explainability
+# prophet>=1.1.0         # Facebook Prophet for trend/seasonality
+
+# Development dependencies (optional)
+# pytest>=7.0.0
+# black>=23.0.0
+# mypy>=1.0.0

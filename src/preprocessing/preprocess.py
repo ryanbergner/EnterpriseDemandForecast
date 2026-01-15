@@ -35,7 +35,8 @@ from pyspark.sql.types import (
 )
 from typing import Optional, List, Any, Dict
 from datetime import datetime, timedelta
-from math import sqrt as math_sqrt
+# Note: Using PySpark SQL functions (sqrt, pow, etc.) for distributed computation
+# instead of Python math module for better performance on large datasets
 
 
 def retrieve_sales_data(table_path: str, spark: "SparkSession" = None) -> DataFrame:
