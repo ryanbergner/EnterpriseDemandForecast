@@ -2,11 +2,12 @@
 API views for training, prediction, model management, and drift checks.
 """
 
+from django.db.models import Count
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 
-from forecasting.models import ForecastJob, FeatureConfig, ModelVersion
+from forecasting.models import ForecastJob, FeatureConfig, ModelVersion, Product
 from forecasting.services import (
     TrainingService,
     InferenceService,
@@ -77,3 +78,21 @@ class DriftCheckView(APIView):
     def post(self, request):
         result = ValidationService.check_drift(request.data)
         return Response(result, status=status.HTTP_200_OK)
+
+
+class HierarchyView(APIView):
+    def get(self, request):
+        rows = (
+            Product.objects.values("category", "subcategory")
+            .annotate(product_count=Count("id"))
+            .order_by("category", "subcategory")
+        )
+        data = [
+            {
+                "category": row["category"] or "Uncategorized",
+                "subcategory": row["subcategory"] or "Uncategorized",
+                "product_count": row["product_count"],
+            }
+            for row in rows
+        ]
+        return Response(data, status=status.HTTP_200_OK)

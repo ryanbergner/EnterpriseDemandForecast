@@ -8,6 +8,7 @@ from .views import (
     FeaturesView,
     MetricsView,
     DriftCheckView,
+    HierarchyView,
 )
 
 
@@ -19,4 +20,5 @@ urlpatterns = [
     path("features/", FeaturesView.as_view(), name="features"),
     path("metrics/", MetricsView.as_view(), name="metrics"),
     path("drift/check/", DriftCheckView.as_view(), name="drift-check"),
+    path("hierarchy/", HierarchyView.as_view(), name="hierarchy"),
 ]

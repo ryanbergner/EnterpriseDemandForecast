@@ -1,0 +1,45 @@
+{% load static %}
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Enterprise Demand Forecasting</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="{% static 'dashboard/css/styles.css' %}" />
+  </head>
+  <body>
+    <div class="page">
+      <header class="topbar">
+        <div class="brand">
+          <div class="brand-mark">EDF</div>
+          <div>
+            <p class="brand-title">Enterprise Demand Forecasting</p>
+            <p class="brand-subtitle">Operational intelligence for modern supply chains</p>
+          </div>
+        </div>
+        <nav class="topbar-actions">
+          <a class="pill" href="/api/v1/models/" target="_blank" rel="noreferrer">Model Registry</a>
+          <a class="pill" href="/api/v1/metrics/" target="_blank" rel="noreferrer">Metrics API</a>
+          <a class="pill" href="/admin/" target="_blank" rel="noreferrer">Admin</a>
+        </nav>
+      </header>
+
+      <main class="content">
+        {% block content %}{% endblock %}
+      </main>
+
+      <footer class="footer">
+        <p>Forecasting system powered by Spark, MLflow, and advanced feature engineering.</p>
+      </footer>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="{% static 'dashboard/js/dashboard.js' %}"></script>
+  </body>
+</html>

@@ -31,6 +31,7 @@ django>=5.1.0
 djangorestframework>=3.15.0
 celery>=5.4.0
 redis>=5.0.0
+redis-server
 
 # Visualization
 seaborn>=0.12.2
