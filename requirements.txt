@@ -2,48 +2,48 @@
 # Enterprise Demand Forecasting System Dependencies
 
 # Core PySpark and data processing
-pyspark>=3.5.4
-numpy>=1.21
-pandas>=2.2.2
-scipy>=1.15.1
+pyspark==4.1.1
+numpy==2.3.5
+pandas==2.3.3
+scipy==1.15.3
 
 # Machine Learning - Core
-scikit-learn>=1.5.2
-mlflow>=2.15.1
+scikit-learn==1.7.2
+mlflow==3.8.1
 
 # Gradient Boosting Models (Advanced ML)
-lightgbm>=4.0.0          # Fast gradient boosting, quantile regression
-xgboost>=2.0.0           # High-accuracy gradient boosting
-catboost>=1.2.0          # Handles categorical features natively
+lightgbm==4.6.0          # Fast gradient boosting, quantile regression
+xgboost==3.1.3           # High-accuracy gradient boosting
+catboost==1.2.8          # Handles categorical features natively
 
 # Time Series & Statistical Models
-statsforecast>=1.7.0     # Statistical forecasting (ARIMA, ETS, Croston)
-tabpfn>=2.0.1            # Transformer-based tabular prediction
+statsforecast==2.0.3     # Statistical forecasting (ARIMA, ETS, Croston)
+tabpfn==6.3.1            # Transformer-based tabular prediction
 
 # Deep Learning (for TabPFN)
-torch>=2.0.0
+torch==2.9.1
 
 # MLflow Model Flavors
-mlflavors>=0.1.0
+mlflavors==0.1.0
 
 # Django API & async processing
-django>=5.1.0
-djangorestframework>=3.15.0
-celery>=5.4.0
-redis>=5.0.0
-redis-server; python_version < "3.9"
+django==6.0.1
+djangorestframework==3.16.1
+celery==5.6.2
+redis==7.1.0
+redis-server==6.0.9; python_version < "3.9"
 
 # Visualization
-seaborn>=0.12.2
-matplotlib>=3.4.3
-plotly>=5.3.1
+seaborn==0.13.2
+matplotlib==3.10.8
+plotly==6.5.2
 
 # Notebook Environment
-jupyter>=1.0.0
-jupyterlab>=3.2.0
+jupyter==1.1.1
+jupyterlab==4.5.2
 
 # Date/Time utilities
-python-dateutil>=2.8.2
+python-dateutil==2.9.0.post0
 
 # Optional dependencies for enhanced functionality
 # Uncomment as needed:
