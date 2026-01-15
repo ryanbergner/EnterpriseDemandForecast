@@ -335,9 +335,9 @@ def train_command(args):
             product_column=args.product_column,
             quantity_column=args.quantity_column,
         )
-        date_column = "OrderDate"
-        product_column = "item_id"
-        quantity_column = "Quantity"
+        date_column = args.date_column
+        product_column = args.product_column
+        quantity_column = args.quantity_column
 
     feature_columns = None
     if args.feature_columns:
@@ -564,8 +564,10 @@ def compare_command(args):
         runs_sorted = runs.sort_values(by=metric_col, ascending=ascending)
         
         logger.info(f"\n🏆 Top {args.top_k} models by {args.metric}:")
-        for i, row in runs_sorted.head(args.top_k).iterrows():
-            logger.info(f"   {i+1}. Run: {row['tags.mlflow.runName']}, {args.metric}={row[metric_col]:.4f}")
+        for rank, (_, row) in enumerate(runs_sorted.head(args.top_k).iterrows(), start=1):
+            logger.info(
+                f"   {rank}. Run: {row['tags.mlflow.runName']}, {args.metric}={row[metric_col]:.4f}"
+            )
         
         # Save results if requested
         if args.output:
