@@ -17,7 +17,9 @@ from pyspark.sql.functions import (
 from pyspark.sql.window import Window
 from typing import List, Optional
 import logging
-import math
+
+# Mathematical constant for cyclical encoding
+_TWO_PI = 6.283185307179586  # 2 * pi
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -124,15 +126,18 @@ def _get_default_interactions(df: DataFrame) -> List[tuple]:
 
 def _add_seasonal_encoding(df: DataFrame, date_col: str) -> DataFrame:
     """Add sin/cos encoding for month (if not already present)."""
+    # Use pre-computed constant for better performance
+    period_factor = _TWO_PI / 12.0
+    
     df = df.withColumn(
         "month_sin",
-        sin(col("month") * (2 * math.pi / 12)) if "month" in df.columns 
-        else sin(month(col(date_col)) * (2 * math.pi / 12))
+        sin(col("month") * lit(period_factor)) if "month" in df.columns 
+        else sin(month(col(date_col)) * lit(period_factor))
     )
     df = df.withColumn(
         "month_cos",
-        cos(col("month") * (2 * math.pi / 12)) if "month" in df.columns
-        else cos(month(col(date_col)) * (2 * math.pi / 12))
+        cos(col("month") * lit(period_factor)) if "month" in df.columns
+        else cos(month(col(date_col)) * lit(period_factor))
     )
     return df
 

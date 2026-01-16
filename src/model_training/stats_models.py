@@ -11,7 +11,8 @@ from pyspark.sql.functions import (
     to_date,
     abs as spark_abs,
     mean as spark_mean,
-    lit
+    lit,
+    sqrt
 )
 from pyspark.sql.window import Window
 from pyspark.sql import DataFrame
@@ -25,7 +26,6 @@ from pyspark.sql.types import (
     DoubleType
 )
 from typing import Optional, List, Any
-import numpy as np
 
 from pyspark.ml.evaluation import RegressionEvaluator
 import mlflow
@@ -132,6 +132,7 @@ def evaluate_stats_models(
     print(f"Got predicted Pandas DF => shape={predicted_quantities_pdf.shape}")
 
     # Convert to Spark => rename columns to match test_df
+    spark = SparkSession.builder.getOrCreate()
     if "unique_id" not in predicted_quantities_pdf.columns:
         # Single-ID scenario => add dummy product_id in both predictions & test
         dummy_id_value = "SingleID"
@@ -185,6 +186,7 @@ def evaluate_stats_models(
             )
             .agg(
                 spark_mean(col("sq_err")).alias("mse"),
+                sqrt(spark_mean(col("sq_err"))).alias("rmse"),
                 spark_mean(spark_pow(col("y_minus_mean"), lit(2.0))).alias("var_y"),
                 spark_mean(col("abs_err")).alias("mae"),
                 spark_mean(col("pct_err")).alias("mape_fraction")
@@ -201,7 +203,7 @@ def evaluate_stats_models(
         else:
             mape_val = None
 
-        rmse_val = np.sqrt(mse_val) if mse_val >= 0 else None
+        rmse_val = aggregated["rmse"]
         # r2 => 1 - MSE / var_y
         r2_val = 1.0 - (mse_val / var_y) if var_y != 0 else None
 

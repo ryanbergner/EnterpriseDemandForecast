@@ -1,0 +1,248 @@
+{% extends "dashboard/base.html" %}
+{% block content %}
+  <section class="hero">
+    <div>
+      <p class="eyebrow">Enterprise Forecasting Command Center</p>
+      <h1>See the demand signal before the market does.</h1>
+      <p class="hero-copy">
+        Monitor model health, accelerate training workflows, and deliver confident forecasts
+        to every stakeholder in the manufacturing network.
+      </p>
+      <div class="hero-actions">
+        <a class="primary" href="/api/v1/train/" target="_blank" rel="noreferrer">Trigger Training API</a>
+        <a class="ghost" href="/api/v1/predict/" target="_blank" rel="noreferrer">Prediction API</a>
+      </div>
+    </div>
+    <div class="hero-card">
+      <div>
+        <p class="eyebrow">System Snapshot</p>
+        <h2>{{ summary.jobs }} Jobs</h2>
+      </div>
+      <div class="hero-metrics">
+        <div>
+          <span class="metric-label">Products</span>
+          <span class="metric-value">{{ summary.products }}</span>
+        </div>
+        <div>
+          <span class="metric-label">Models</span>
+          <span class="metric-value">{{ summary.models }}</span>
+        </div>
+        <div>
+          <span class="metric-label">Forecasts</span>
+          <span class="metric-value">{{ summary.forecasts }}</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="summary-grid">
+    <div class="summary-card">
+      <p class="eyebrow">Products tracked</p>
+      <h3>{{ summary.products }}</h3>
+      <p class="muted">Unified catalog coverage</p>
+    </div>
+    <div class="summary-card">
+      <p class="eyebrow">Models registered</p>
+      <h3>{{ summary.models }}</h3>
+      <p class="muted">MLflow-backed governance</p>
+    </div>
+    <div class="summary-card">
+      <p class="eyebrow">Jobs executed</p>
+      <h3>{{ summary.jobs }}</h3>
+      <p class="muted">Async training and inference</p>
+    </div>
+    <div class="summary-card">
+      <p class="eyebrow">Forecast rows</p>
+      <h3>{{ summary.forecasts }}</h3>
+      <p class="muted">Predictions at scale</p>
+    </div>
+  </section>
+
+  <section class="grid-2">
+    <div class="panel">
+      <div class="panel-header">
+        <div>
+          <h3>Forecast Pulse</h3>
+          <p class="muted">Latest predictions for the selected product.</p>
+        </div>
+        <form method="get" class="inline-form">
+          <select name="product_id">
+            {% if not products %}
+              <option>No products yet</option>
+            {% endif %}
+            {% for product_id in products %}
+              <option value="{{ product_id }}" {% if product_id == selected_product_id %}selected{% endif %}>
+                {{ product_id }}
+              </option>
+            {% endfor %}
+          </select>
+          <button type="submit">Refresh</button>
+        </form>
+      </div>
+      <div class="panel-body">
+        {% if has_forecast_data %}
+          <canvas id="forecastChart" height="200"></canvas>
+        {% else %}
+          <div class="empty-state">
+            <p>No forecast data yet. Trigger a prediction to populate this chart.</p>
+          </div>
+        {% endif %}
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-header">
+        <div>
+          <h3>Job Pipeline Health</h3>
+          <p class="muted">Queued vs running vs completed workloads.</p>
+        </div>
+      </div>
+      <div class="panel-body">
+        <canvas id="jobStatusChart" height="200"></canvas>
+      </div>
+    </div>
+  </section>
+
+  <section class="grid-2">
+    <div class="panel">
+      <div class="panel-header">
+        <div>
+          <h3>Quick Actions</h3>
+          <p class="muted">Launch training, inference, and drift checks directly.</p>
+        </div>
+      </div>
+      <div class="panel-body">
+        <div class="action-stack">
+          <form class="action-form" data-endpoint="/api/v1/train/">
+            {% csrf_token %}
+            <h4>Train Model</h4>
+            <label>
+              Data path
+              <input name="data_path" placeholder="data/warehouse/sales.parquet" required />
+            </label>
+            <label>
+              Experiment prefix
+              <input name="experiment_prefix" placeholder="/Django_Forecasting" />
+            </label>
+            <label class="checkbox">
+              <input type="checkbox" name="use_advanced_features" />
+              Use advanced features
+            </label>
+            <button type="submit">Start Training</button>
+            <pre class="action-output"></pre>
+          </form>
+
+          <form class="action-form" data-endpoint="/api/v1/predict/">
+            {% csrf_token %}
+            <h4>Generate Predictions</h4>
+            <label>
+              Data path
+              <input name="data_path" placeholder="data/warehouse/sales.parquet" required />
+            </label>
+            <label>
+              Model name
+              <input name="model_name" placeholder="RandomForest_Smooth" required />
+            </label>
+            <label class="checkbox">
+              <input type="checkbox" name="include_intervals" />
+              Include prediction intervals
+            </label>
+            <button type="submit">Run Prediction</button>
+            <pre class="action-output"></pre>
+          </form>
+
+          <form class="action-form" data-endpoint="/api/v1/drift/check/">
+            {% csrf_token %}
+            <h4>Drift Check</h4>
+            <label>
+              Data path
+              <input name="data_path" placeholder="data/warehouse/forecast_actuals.parquet" required />
+            </label>
+            <label>
+              Actual column
+              <input name="actual_col" value="Quantity" />
+            </label>
+            <label>
+              Predicted column
+              <input name="predicted_col" value="prediction" />
+            </label>
+            <label>
+              Date column
+              <input name="date_col" value="MonthEndDate" />
+            </label>
+            <button type="submit">Check Drift</button>
+            <pre class="action-output"></pre>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-header">
+        <div>
+          <h3>Recent Activity</h3>
+          <p class="muted">Latest jobs and model releases.</p>
+        </div>
+      </div>
+      <div class="panel-body">
+        <div class="list-grid">
+          <div>
+            <h4>Latest Jobs</h4>
+            <ul class="stack">
+              {% for job in latest_jobs %}
+                <li class="list-row">
+                  <span class="badge badge-{{ job.status }}">{{ job.status }}</span>
+                  <div>
+                    <p class="list-title">{{ job.job_type|title }} job #{{ job.id }}</p>
+                    <p class="muted">{{ job.created_at|date:"M d, H:i" }}</p>
+                  </div>
+                </li>
+              {% empty %}
+                <li class="empty-state">No jobs yet.</li>
+              {% endfor %}
+            </ul>
+          </div>
+          <div>
+            <h4>Model Registry</h4>
+            <ul class="stack">
+              {% for model in latest_models %}
+                <li class="list-row">
+                  <span class="badge badge-stage">{{ model.stage|default:"draft" }}</span>
+                  <div>
+                    <p class="list-title">{{ model.name }}</p>
+                    <p class="muted">v{{ model.version }} • {{ model.created_at|date:"M d" }}</p>
+                  </div>
+                </li>
+              {% empty %}
+                <li class="empty-state">No models synced yet.</li>
+              {% endfor %}
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-header">
+      <div>
+        <h3>Feature Configurations</h3>
+        <p class="muted">Curated feature bundles powering advanced forecasting.</p>
+      </div>
+    </div>
+    <div class="panel-body">
+      <div class="feature-grid">
+        {% for feature in feature_configs %}
+          <div class="feature-card">
+            <h4>{{ feature.name }}</h4>
+            <p class="muted">{{ feature.description|default:"No description yet." }}</p>
+          </div>
+        {% empty %}
+          <div class="empty-state">No feature configs registered.</div>
+        {% endfor %}
+      </div>
+    </div>
+  </section>
+
+  {{ forecast_chart|json_script:"forecast-chart-data" }}
+  {{ job_status_chart|json_script:"job-status-chart-data" }}
+{% endblock %}

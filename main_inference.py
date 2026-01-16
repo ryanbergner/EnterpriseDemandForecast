@@ -1,53 +1,13 @@
-from pyspark.sql import SparkSession
-from statsforecast import StatsForecast
-from statsforecast.models import AutoARIMA, HoltWinters, ARIMA, CrostonClassic
-import pyspark.sql.functions as F
-from pyspark.sql.functions import (
-    count,
-    lag,
-    last_day,
-    expr,
-    explode,
-    sequence,
-    date_format,
-    col,
-    last,
-    lead,
-    when,
-    months_between,
-    month,
-    year,
-    avg,
-    to_timestamp,
-    to_date,
-    mean,
-    lit,
-    max as spark_max,
-    unix_timestamp
-)
-from pyspark.sql.window import Window
-from pyspark.sql import DataFrame
-from pyspark.sql.types import StructType, StructField, StringType, DateType
-from typing import Optional, List, Any, Dict
-from math import sqrt as math_sqrt
-from dateutil.relativedelta import relativedelta
+from pyspark.sql import SparkSession, DataFrame
+from pyspark.sql.functions import col, expr, lit
+from typing import Optional, List
 from functools import reduce
-import pandas as pd
-import mlflavors as mlflavors
-from datetime import datetime, timedelta
 import mlflow
 
-from pyspark.ml.feature import VectorAssembler
-from pyspark.ml.regression import GBTRegressor, LinearRegression, RandomForestRegressor
-from pyspark.ml.tuning import CrossValidator, ParamGridBuilder
-from pyspark.ml.evaluation import RegressionEvaluator
-from pyspark.ml import Pipeline, PipelineModel
-
-from src.preprocessing.preprocess import aggregate_sales_data, retrieve_sales_data
+from src.preprocessing.preprocess import aggregate_sales_data
 from src.feature_engineering.feature_engineering import add_features
-from src.model_training.ml_models import train_sparkML_model, evaluate_SparkML_model
-from src.model_training.stats_models import train_stats_models, evaluate_stats_models
-from src.inference.inference import generate_predictions, get_model_by_tag
+from src.inference.inference import generate_predictions
+from src.inference.monthly_predictions import MonthlyPredictionGenerator
 
 mlflow.set_registry_uri("databricks-uc")
 client = mlflow.tracking.MlflowClient()
@@ -63,7 +23,11 @@ def main_inference(
     quantity_column: str,
     month_end_column: str,
     target_path: Optional[str] = None,
-    ind_full_history: Optional[int] = 0
+    ind_full_history: Optional[int] = 0,
+    include_intervals: bool = False,
+    confidence_level: float = 0.95,
+    feature_cols: Optional[List[str]] = None,
+    target_col: str = "lead_month_1"
 ) -> DataFrame:
     """
     Generates predictions for all products with more than 5 months of historical
@@ -102,6 +66,22 @@ def main_inference(
     else:
         df_inference = df_feat.filter(col("total_orders") > 5)
 
+    # Default feature columns for interval estimation
+    if feature_cols is None:
+        feature_cols = [
+            quantity_column,
+            "months_since_last_order",
+            "last_order_quantity",
+            "month",
+            "year",
+            "lag_1",
+            "lag_2",
+            "lag_3",
+            "ma_4_month",
+            "ma_8_month",
+            "cov_quantity"
+        ]
+
     # 3) Generate predictions for each distinct product category.
     dfs_predictions = []
     sales_patterns = [
@@ -122,14 +102,31 @@ def main_inference(
         champ_run_details = client.get_run(champ_run_id)
         champ_model_alias = champ_run_details.data.tags["mlflow.runName"]
 
-        champ_df = generate_predictions(
-            champ_model_uri,
-            champ_model_alias,
-            sales_pattern,
-            df_inference_filtered,
-            month_end_column,
-            product_id_column
-        ).withColumn("is_champion", lit(1))
+        if include_intervals and ind_full_history != 1:
+            champ_generator = MonthlyPredictionGenerator(
+                model_uri=champ_model_uri,
+                model_name=champ_model_alias,
+                spark=df.sparkSession,
+                confidence_level=confidence_level,
+                date_col=month_end_column,
+                product_id_col=product_id_column
+            )
+            champ_df = champ_generator.generate(
+                df_inference=df_inference_filtered,
+                sales_pattern=sales_pattern,
+                include_intervals=True,
+                feature_cols=feature_cols,
+                target_col=target_col
+            ).withColumn("is_champion", lit(1))
+        else:
+            champ_df = generate_predictions(
+                champ_model_uri,
+                champ_model_alias,
+                sales_pattern,
+                df_inference_filtered,
+                month_end_column,
+                product_id_column
+            ).withColumn("is_champion", lit(1))
         dfs_predictions.append(champ_df)
 
         # Challenger predictions
@@ -140,18 +137,35 @@ def main_inference(
         chall_run_details = client.get_run(chall_run_id)
         chall_model_alias = chall_run_details.data.tags["mlflow.runName"]
 
-        chall_df = generate_predictions(
-            chall_model_uri,
-            chall_model_alias,
-            sales_pattern,
-            df_inference_filtered,
-            month_end_column,
-            product_id_column
-        ).withColumn("is_champion", lit(0))
+        if include_intervals and ind_full_history != 1:
+            chall_generator = MonthlyPredictionGenerator(
+                model_uri=chall_model_uri,
+                model_name=chall_model_alias,
+                spark=df.sparkSession,
+                confidence_level=confidence_level,
+                date_col=month_end_column,
+                product_id_col=product_id_column
+            )
+            chall_df = chall_generator.generate(
+                df_inference=df_inference_filtered,
+                sales_pattern=sales_pattern,
+                include_intervals=True,
+                feature_cols=feature_cols,
+                target_col=target_col
+            ).withColumn("is_champion", lit(0))
+        else:
+            chall_df = generate_predictions(
+                chall_model_uri,
+                chall_model_alias,
+                sales_pattern,
+                df_inference_filtered,
+                month_end_column,
+                product_id_column
+            ).withColumn("is_champion", lit(0))
         dfs_predictions.append(chall_df)
 
     # 4) Union all champion and challenger predictions into a single DataFrame.
-    df_predictions = reduce(DataFrame.unionAll, dfs_predictions)
+    df_predictions = reduce(lambda a, b: a.unionByName(b, allowMissingColumns=True), dfs_predictions)
 
     # 5) Optionally write predictions to a target path.
     if target_path is not None:

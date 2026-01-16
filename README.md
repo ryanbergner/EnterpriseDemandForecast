@@ -632,3 +632,189 @@ mlflavors>=1.0.0        # MLflow model flavors
 4. **Batch Processing**: Process data in appropriate batch sizes
 5. **Model Optimization**: Use appropriate hyperparameter tuning strategies
 
+---
+
+## Improvements and Enhancements
+
+This section consolidates the improvements roadmap and implementation notes.
+
+### Phase 1: Foundation & Validation
+
+#### 1. ✅ Data Quality Validators
+**Location:** `src/validation/data_quality.py`
+
+- Automated missing data detection with pattern analysis
+- Multi-method outlier detection (Z-score, IQR)
+- Time gap detection for temporal continuity
+- Seasonality strength measurement
+- Zero-value pattern analysis for intermittent demand
+- Comprehensive reporting with actionable recommendations
+
+#### 2. ✅ Time-Series Cross-Validation
+**Location:** `src/validation/time_series_cv.py`
+
+- Expanding window strategy (train size grows)
+- Sliding window strategy (fixed train size)
+- Respects temporal ordering (no data leakage)
+- Configurable train/test splits and gaps
+- Walk-forward validation for production scenarios
+
+#### 3. ✅ Smart Null Handling
+**Location:** `src/preprocessing/imputation.py`
+
+- Multiple imputation strategies (forward fill, seasonal, interpolation, etc.)
+- Auto-selection based on data characteristics
+- Handles intermittent demand patterns
+
+### Phase 2: Advanced Feature Engineering
+
+#### 4. ✅ Trend Features
+**Location:** `src/feature_engineering/trend_features.py`
+
+- `time_index`, growth rates, momentum, trend strength, acceleration
+- Lifecycle position and change-point indicators
+
+#### 5. ✅ Exponentially Weighted Moving Averages (EWMA)
+**Location:** `src/feature_engineering/ewma_features.py`
+
+- EWMA features, EWMA volatility, momentum, divergence
+- Adaptive EWMA based on volatility
+
+#### 6. ✅ Feature Interactions
+**Location:** `src/feature_engineering/interaction_features.py`
+
+- Multiplicative, polynomial, ratio, and category-specific interactions
+- Temporal modulation and lag interactions
+
+### Phase 3: Model Intelligence & Automation
+
+#### 7. ✅ Early Stopping
+**Location:** `src/model_training/early_stopping.py`
+
+- Validation-based stopping for GBT and RF
+- Restores best iteration, not last
+
+#### 8. ✅ Feature Importance Analysis
+**Location:** `src/model_training/feature_importance.py`
+
+- Native tree importances and permutation importance
+- Automatic feature selection
+
+#### 9. ✅ Ensemble Methods
+**Location:** `src/model_training/ensemble.py`
+
+- Simple/weighted/median ensembles
+- Stacking and dynamic selection
+
+### Phase 4: Operationalization & UX
+
+#### 10. ✅ Prediction Confidence Intervals
+**Location:** `src/inference/confidence_intervals.py`
+
+- Residual, quantile, and bootstrap intervals
+- Confidence scoring and interval coverage evaluation
+
+#### 11. ✅ Model Comparison Dashboard
+**Location:** `src/visualization/model_dashboard.py`
+
+- Plotly dashboards, performance comparisons, residual analysis
+
+#### 12. ✅ Unified CLI
+**Location:** `cli.py`
+
+- Train, evaluate, predict, validate, compare, dashboard commands
+
+### Expected Impact
+
+- **Performance:** 20–40% RMSE reduction (combined)
+- **Operational:** faster debugging, improved stakeholder trust
+
+---
+
+## New Features Summary
+
+### Key Additions
+- New validation, feature engineering, training, inference, and visualization modules
+- 80+ engineered features and multiple ensembling strategies
+- Confidence intervals and dashboard reporting
+
+### CLI Examples
+```bash
+# Validate data quality
+python cli.py validate --data data/sales.csv --report-path report.json
+
+# Train with enhancements
+python cli.py train --data data.csv --models rf,gbt,stats --cv-folds 5 --early-stopping
+
+# Evaluate with confidence intervals
+python cli.py evaluate --model-path models/best --data test.csv --confidence-intervals
+```
+
+---
+
+## Migration Summary: Gale Pacific → M5 Dataset
+
+### Key Changes
+- Consolidated EDA into `EDA_M5.py`
+- Unified training into `main_train.py`
+- Added local and Databricks M5 entrypoints
+- Updated default column mappings to M5 schema
+- Added upload and schema validation utility (`upload_data.py`)
+
+### M5 Schema
+- `item_id`: Product identifier
+- `OrderDate`: Date of order/sale
+- `Quantity`: Quantity/demand
+
+### Local Training
+```bash
+python main_train_local.py data/m5/sales_train_validation.csv
+```
+
+---
+
+## Django Application
+
+### Setup
+```bash
+pip install -r requirements.txt
+cd demand_forecast_app
+python manage.py migrate
+python manage.py runserver
+```
+
+### Celery Worker
+```bash
+celery -A demand_forecast worker -l info
+```
+
+### Key API Endpoints
+- `POST /api/v1/train/` — trigger training job
+- `GET /api/v1/train/{job_id}/` — training job status
+- `POST /api/v1/predict/` — generate predictions
+- `GET /api/v1/models/` — list model versions
+- `GET /api/v1/features/` — list feature configs
+- `GET /api/v1/metrics/` — model metrics
+- `POST /api/v1/drift/check/` — drift detection
+
+---
+
+## Pull Request Description (Historical)
+
+This codebase includes a comprehensive enhancement set:
+- 16+ new files, 80+ features, improved validation and uncertainty
+- CLI support for end-to-end workflows
+
+---
+
+## Pull Request Creation Instructions
+
+If your repository enforces branch protection, follow the manual PR steps:
+
+1. Go to: `https://github.com/ryanbergner/EnterpriseDemandForecast`
+2. Open “Pull requests” → “New pull request”
+3. Base: `dev`, Compare: your feature branch
+4. Use the PR description section in this README
+
+If branch creation is blocked, apply `forecasting-improvements.patch` on `dev`.
+
