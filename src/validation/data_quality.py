@@ -136,11 +136,15 @@ class DataQualityValidator:
         
         total_count = df.count()
         
+        iqr_rate = None
+        if iqr_outliers is not None and total_count > 0:
+            iqr_rate = iqr_outliers / total_count
+
         return {
             "zscore_outliers": zscore_outliers,
             "zscore_rate": zscore_outliers / total_count if total_count > 0 else 0,
             "iqr_outliers": iqr_outliers,
-            "iqr_rate": iqr_outliers / total_count if iqr_outliers and total_count > 0 else None,
+            "iqr_rate": iqr_rate,
             "bounds": {"lower": lower_bound, "upper": upper_bound},
             "status": "PASS" if (zscore_outliers / total_count) < 0.05 else "WARNING"
         }
@@ -374,7 +378,10 @@ class DataQualityValidator:
         if "reason" not in out:
             print(f"   Z-score outliers: {out['zscore_outliers']:,} ({out['zscore_rate']:.2%})")
             if out["iqr_outliers"] is not None:
-                print(f"   IQR outliers: {out['iqr_outliers']:,} ({out['iqr_rate']:.2%})")
+                if out["iqr_rate"] is not None:
+                    print(f"   IQR outliers: {out['iqr_outliers']:,} ({out['iqr_rate']:.2%})")
+                else:
+                    print(f"   IQR outliers: {out['iqr_outliers']:,}")
             print(f"   Status: {out['status']}")
         
         # Time Gaps

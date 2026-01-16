@@ -86,10 +86,12 @@ def load_custom_daily_dataset(
     product_column: str,
     quantity_column: str,
     select_columns: Optional[Sequence[str]] = None,
+    rename_to_canonical: bool = True,
 ) -> DataFrame:
     """
-    Load a user-provided dataset that already contains daily records and rename columns
-    to the canonical [OrderDate, item_id, Quantity] layout expected by the pipeline.
+    Load a user-provided dataset that already contains daily records. By default, rename
+    columns to the canonical [OrderDate, item_id, Quantity] layout expected by the
+    M5 pipeline. Set rename_to_canonical=False to keep the original column names.
     """
     reader = spark.read.format("csv").option("header", True)
     if path.lower().endswith((".parquet", ".pq")):
@@ -102,14 +104,25 @@ def load_custom_daily_dataset(
     if missing:
         raise ValueError(f"Custom dataset missing required columns: {sorted(missing)}")
 
+    if rename_to_canonical:
+        sdf = (
+            sdf.withColumn("OrderDate", F.to_date(F.col(date_column)))
+            .withColumn("Quantity", F.col(quantity_column).cast(DoubleType()))
+            .withColumn("item_id", F.col(product_column))
+        )
+
+        keep_columns = {"OrderDate", "item_id", "Quantity"}
+        if select_columns:
+            keep_columns.update(set(select_columns) & set(sdf.columns))
+
+        return sdf.select(*keep_columns)
+
     sdf = (
-        sdf.withColumn("OrderDate", F.to_date(F.col(date_column)))
-        .withColumn("Quantity", F.col(quantity_column).cast(DoubleType()))
-        .withColumn("item_id", F.col(product_column))
+        sdf.withColumn(date_column, F.to_date(F.col(date_column)))
+        .withColumn(quantity_column, F.col(quantity_column).cast(DoubleType()))
     )
-
-    keep_columns = {"OrderDate", "item_id", "Quantity"}
     if select_columns:
+        keep_columns = {date_column, product_column, quantity_column}
         keep_columns.update(set(select_columns) & set(sdf.columns))
-
-    return sdf.select(*keep_columns)
+        return sdf.select(*keep_columns)
+    return sdf

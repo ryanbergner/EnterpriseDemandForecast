@@ -12,6 +12,7 @@ Provides a single entry point for all operations:
 """
 
 import argparse
+import os
 import sys
 import logging
 from pathlib import Path
@@ -22,6 +23,14 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
+
+
+def _configure_spark_runtime() -> None:
+    """
+    Ensure Spark workers use the same Python executable as the driver.
+    """
+    os.environ["PYSPARK_PYTHON"] = sys.executable
+    os.environ["PYSPARK_DRIVER_PYTHON"] = sys.executable
 
 
 def create_parser() -> argparse.ArgumentParser:
@@ -298,6 +307,7 @@ def train_command(args):
     logger.info(f"   Data source: {args.data}")
     logger.info(f"   Format: {args.format}")
 
+    _configure_spark_runtime()
     from pyspark.sql import SparkSession, functions as F
     import mlflow
 
@@ -334,6 +344,7 @@ def train_command(args):
             date_column=args.date_column,
             product_column=args.product_column,
             quantity_column=args.quantity_column,
+            rename_to_canonical=False,
         )
         date_column = args.date_column
         product_column = args.product_column
@@ -381,7 +392,8 @@ def evaluate_command(args):
     logger.info(f"   Model: {args.model_path}")
     logger.info(f"   Data: {args.data}")
     
-    from pyspark.sql import SparkSession
+    _configure_spark_runtime()
+    from pyspark.sql import SparkSession, functions as F
     import mlflow
     
     spark = SparkSession.builder.appName("Evaluate_CLI").getOrCreate()
@@ -450,7 +462,8 @@ def predict_command(args):
     logger.info(f"   Model: {args.model_path}")
     logger.info(f"   Horizon: {args.horizon}")
     
-    from pyspark.sql import SparkSession
+    _configure_spark_runtime()
+    from pyspark.sql import SparkSession, functions as F
     import mlflow
     
     spark = SparkSession.builder.appName("Predict_CLI").getOrCreate()
@@ -498,7 +511,8 @@ def validate_command(args):
     logger.info("🔍 Starting data quality validation...")
     logger.info(f"   Data: {args.data}")
     
-    from pyspark.sql import SparkSession
+    _configure_spark_runtime()
+    from pyspark.sql import SparkSession, functions as F
     from src.validation.data_quality import DataQualityValidator
     
     spark = SparkSession.builder.appName("Validate_CLI").getOrCreate()
@@ -509,6 +523,11 @@ def validate_command(args):
     else:
         df = spark.read.parquet(args.data)
     
+    df = (
+        df.withColumn(args.date_col, F.to_date(F.col(args.date_col)))
+        .withColumn(args.target_col, F.col(args.target_col).cast("double"))
+    )
+
     # Run validation
     validator = DataQualityValidator()
     report = validator.validate(
