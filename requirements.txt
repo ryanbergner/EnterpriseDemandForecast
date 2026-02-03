@@ -19,3 +19,4 @@ jupyterlab>=3.2.0
 # Optional dependencies
 #git+https://github.com/PriorLabs/tabpfn-community.git
 #git+https://github.com/FelixdenBreejen/TabForestPFN.git
+nbconvert>=7.17.0 # not directly required, pinned by Snyk to avoid a vulnerability
